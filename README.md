@@ -4,6 +4,8 @@ A simple Command Line Interface (CLI) tool written in Rust to connect to **Galla
 
 It calculates and displays real-time workout metrics by decoding the raw data packets sent by the bike.
 
+![Dashboard Screenshot](.public/screenshot.png)
+
 ## 🚀 Features
 
 - **Auto-Discovery**: Scans for Bluetooth devices named "GLT" or "Gallant".
