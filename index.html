@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Gallant Spinning</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: #2d2d2d;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+            width: 350px;
+        }
+        .metric {
+            margin: 20px 0;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+        }
+        .value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        .label {
+            font-size: 0.9rem;
+            color: #aaa;
+            text-transform: uppercase;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover { background-color: #0056b3; }
+        #status { margin-top: 15px; font-size: 0.8rem; color: #888; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Gallant Web Dashboard</h2>
+
+        <div class="metric">
+            <div id="speed" class="value">0.0</div>
+            <div class="label">Velocidade (km/h)</div>
+        </div>
+
+        <div class="metric">
+            <div id="cadence" class="value">0</div>
+            <div class="label">Cadência (RPM)</div>
+        </div>
+
+        <div class="metric">
+            <div id="power" class="value">0</div>
+            <div class="label">Potência (Watts)</div>
+        </div>
+
+        <button id="connectBtn">Conectar Bicicleta</button>
+        <div id="status">Desconectado</div>
+    </div>
+
+    <script>
+        // Configurações (Fatores que descobrimos)
+        const CONFIG = {
+            speed_factor: 0.168,
+            power_factor: 0.83,
+            rpm_factor: 42.7
+        };
+
+        const connectBtn = document.getElementById('connectBtn');
+        const statusEl = document.getElementById('status');
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                statusEl.textContent = "Buscando...";
+
+                // Solicita dispositivo
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'GLT' }, { namePrefix: 'Gallant' }],
+                    optionalServices: [0x1826] // Fitness Machine Service
+                });
+
+                statusEl.textContent = "Conectando ao GATT...";
+                const server = await device.gatt.connect();
+
+                statusEl.textContent = "Buscando Serviço...";
+                const service = await server.getPrimaryService(0x1826);
+
+                statusEl.textContent = "Iniciando Notificações...";
+                const characteristic = await service.getCharacteristic(0x2AD2);
+
+                await characteristic.startNotifications();
+
+                statusEl.textContent = "✅ Conectado: " + device.name;
+                connectBtn.style.display = 'none';
+
+                characteristic.addEventListener('characteristicvaluechanged', handleData);
+
+            } catch (error) {
+                console.error(error);
+                statusEl.textContent = "Erro: " + error.message;
+            }
+        });
+
+        function handleData(event) {
+            const data = event.target.value; // DataView
+
+            // Pacote de 18 bytes (Velocidade e Potência)
+            if (data.byteLength === 18) {
+                const rawSpeed = data.getUint16(2, true);
+                const speed = (rawSpeed * CONFIG.speed_factor).toFixed(1);
+                document.getElementById('speed').textContent = speed;
+
+                const rawPower = data.getInt16(9, true);
+                const power = Math.round(rawPower * CONFIG.power_factor);
+                document.getElementById('power').textContent = power;
+            }
+
+            // Pacote de 6 bytes (Cadência)
+            else if (data.byteLength === 6) {
+                const rawCad = data.getUint16(2, true);
+                const rpm = Math.round(rawCad / CONFIG.rpm_factor);
+                document.getElementById('cadence').textContent = rpm;
+            }
+        }
+    </script>
+</body>
+</html>
